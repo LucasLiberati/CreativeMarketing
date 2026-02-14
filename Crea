@@ -1,0 +1,614 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Layout, 
+  Image as ImageIcon, 
+  Type, 
+  Download, 
+  Palette, 
+  Sparkles, 
+  ChevronRight, 
+  Monitor, 
+  Smartphone, 
+  Square, 
+  AlertCircle, 
+  Loader2, 
+  Maximize, 
+  Upload, 
+  X, 
+  Plus, 
+  Layers, 
+  Wallpaper, 
+  Eye, 
+  EyeOff, 
+  Type as FontSizeIcon, 
+  FileImage,
+  PlusCircle,
+  Trash2,
+  Anchor,
+  Save,
+  CheckCircle
+} from 'lucide-react';
+
+// Définition des formats publicitaires Carrefour actualisés
+const AD_FORMATS = {
+  SPOTLIGHT: { 
+    id: 'spotlight', 
+    name: 'Spotlight', 
+    width: 576, 
+    height: 200, 
+    safeWidth: 388, 
+    safeHeight: 184, 
+    centered: true,
+    icon: Monitor 
+  },
+  SHOPLINE: { 
+    id: 'shopline', 
+    name: 'Shopline', 
+    width: 368, 
+    height: 516, 
+    safeWidth: 208, 
+    safeHeight: 140, 
+    centered: false, // Aligné en haut
+    icon: Square 
+  },
+  BANNER: { 
+    id: 'banner', 
+    name: 'Banner', 
+    width: 1440, 
+    height: 200, 
+    safeWidth: 670, 
+    safeHeight: 184, 
+    centered: true,
+    icon: Layout 
+  }
+};
+
+// Options de typographie
+const FONT_OPTIONS = [
+  { id: 'sans', name: 'Moderne (Sans)', family: 'ui-sans-serif, system-ui, sans-serif' },
+  { id: 'serif', name: 'Élégant (Serif)', family: 'ui-serif, Georgia, serif' },
+  { id: 'mono', name: 'Technique (Mono)', family: 'ui-monospace, SFMono-Regular, monospace' },
+  { id: 'display', name: 'Impact (Bold)', family: 'system-ui, sans-serif', weight: '900' }
+];
+
+const App = () => {
+  const [formData, setFormData] = useState({
+    tagline: 'Le plein de fraîcheur',
+    messageType: 'text', 
+    bgType: 'color', 
+    bgColor: '#003876',
+    textColor: '#FFFFFF',
+    ctaBgColor: '#ED1C24', 
+    ctaTextColor: '#FFFFFF',
+    textSize: 24, 
+    format: 'BANNER', 
+    fontId: 'display',
+    productDescription: '',
+    style: 'photographie studio, détouré, haute qualité',
+    showLogo: true,
+    showText: true,
+    showVisuals: true,
+    showFooterCta: true,
+    footerCtaText: 'JE DÉCOUVRE',
+    ctas: ['Acheter'] 
+  });
+
+  const [brandLogo, setBrandLogo] = useState(null);
+  const [messageImage, setMessageImage] = useState(null); 
+  const [bgImage, setBgImage] = useState(null);
+  const [customAssets, setCustomAssets] = useState([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState(null);
+  const [error, setError] = useState(null);
+  
+  const apiKey = ""; 
+
+  // Fonction globale pour déclencher l'export
+  const handleExport = () => {
+    window.print();
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const toggleVisibility = (key) => {
+    setFormData(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const addCta = () => {
+    if (formData.ctas.length < 5) {
+      setFormData(prev => ({ ...prev, ctas: [...prev.ctas, 'Nouveau CTA'] }));
+    }
+  };
+
+  const updateCta = (index, text) => {
+    const newCtas = [...formData.ctas];
+    newCtas[index] = text;
+    setFormData(prev => ({ ...prev, ctas: newCtas }));
+  };
+
+  const removeCta = (index) => {
+    setFormData(prev => ({ ...prev, ctas: prev.ctas.filter((_, i) => i !== index) }));
+  };
+
+  const handleFileUpload = (e, setter, multiple = false) => {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (multiple) {
+          setter(prev => [...prev, reader.result]);
+        } else {
+          setter(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeAsset = (index) => {
+    setCustomAssets(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const generateVisual = async () => {
+    if (!formData.productDescription) {
+      setError("Veuillez décrire l'élément IA à générer.");
+      return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+
+    const prompt = `Professional product photography of ${formData.productDescription}, ${formData.style}, single object isolated on plain white background, sharp focus, 8k.`;
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instances: [{ prompt: prompt }],
+            parameters: { sampleCount: 1 }
+          }),
+        }
+      );
+
+      const result = await response.json();
+      if (result.predictions?.[0]?.bytesBase64Encoded) {
+        setGeneratedImageUrl(`data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`);
+      } else {
+        throw new Error("Erreur de génération.");
+      }
+    } catch (err) {
+      setError("Erreur lors de la génération IA.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const currentFormat = AD_FORMATS[formData.format];
+  const currentFont = FONT_OPTIONS.find(f => f.id === formData.fontId);
+
+  const allVisuals = [];
+  if (generatedImageUrl) allVisuals.push({ type: 'ia', url: generatedImageUrl });
+  customAssets.forEach(url => allVisuals.push({ type: 'custom', url }));
+
+  const dynamicLogoScale = 1.6 - ((formData.textSize - 10) / 50) * 0.9;
+  const isLogoOnly = formData.showLogo && !formData.showText;
+  const isLogoBig = !formData.showText || !formData.showVisuals;
+  const finalLogoScale = isLogoBig ? 1.3 : dynamicLogoScale;
+
+  const MessageContent = ({ isFullWidth = false }) => {
+    if (!formData.showText) return null;
+    
+    if (formData.messageType === 'visual' && messageImage) {
+      return (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 w-full h-full flex items-center justify-center overflow-hidden">
+          <img src={messageImage} className="max-h-full max-w-full object-contain" alt="Message visuel" />
+        </div>
+      );
+    }
+    
+    return (
+      <div className={`animate-in fade-in slide-in-from-bottom-2 duration-500 max-w-full ${isFullWidth ? 'text-center w-full' : (isLogoOnly ? '' : 'mt-auto')}`}>
+        <h2 
+          className="leading-[1.1] break-words drop-shadow-sm transition-all duration-300"
+          style={{ 
+            fontFamily: currentFont.family, 
+            fontWeight: currentFont.weight || '700', 
+            color: formData.textColor,
+            fontSize: `${formData.textSize}px`
+          }}
+        >
+          {formData.tagline || 'Accroche'}
+        </h2>
+      </div>
+    );
+  };
+
+  const hasCtas = formData.format !== 'BANNER';
+
+  return (
+    <div className="flex flex-col lg:flex-row min-h-screen lg:h-screen bg-gray-100 text-slate-900 font-sans lg:overflow-hidden">
+      {/* Panneau latéral de contrôle */}
+      <div className="w-full lg:w-[420px] bg-white border-b lg:border-r border-gray-200 p-6 flex-shrink-0 shadow-sm lg:overflow-y-auto">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="bg-[#003876] p-2 rounded-lg">
+            <Sparkles className="text-white w-5 h-5" />
+          </div>
+          <h1 className="text-xl font-bold uppercase tracking-tighter">Studio Carrefour</h1>
+        </div>
+
+        <div className="space-y-8 pb-10">
+          {/* Format */}
+          <section className="space-y-3">
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[2px]">Format</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.keys(AD_FORMATS).map((key) => {
+                const Icon = AD_FORMATS[key].icon;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setFormData(prev => ({ ...prev, format: key }))}
+                    className={`p-2 rounded-lg border-2 text-[10px] font-bold transition-all flex flex-col items-center gap-1 ${
+                      formData.format === key ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-100 bg-gray-50'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {AD_FORMATS[key].name}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Fond */}
+          <section className="space-y-3">
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[2px]">Fond</h3>
+            <div className="flex p-1 bg-gray-100 rounded-xl mb-2">
+              <button onClick={() => setFormData(prev => ({ ...prev, bgType: 'color' }))} className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg ${formData.bgType === 'color' ? 'bg-white shadow text-blue-700' : 'text-gray-500'}`}>COULEUR</button>
+              <button onClick={() => setFormData(prev => ({ ...prev, bgType: 'image' }))} className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg ${formData.bgType === 'image' ? 'bg-white shadow text-blue-700' : 'text-gray-500'}`}>IMAGE</button>
+            </div>
+            {formData.bgType === 'color' ? (
+              <div className="flex gap-2 items-center p-2 bg-gray-50 border rounded-lg shadow-inner">
+                <input type="color" name="bgColor" value={formData.bgColor} onChange={handleInputChange} className="w-8 h-8 rounded cursor-pointer border-none shadow-sm" />
+                <input type="text" name="bgColor" value={formData.bgColor} onChange={handleInputChange} className="flex-1 bg-transparent text-xs font-mono uppercase focus:ring-0 border-none p-0" />
+              </div>
+            ) : (
+              <div className="border-2 border-dashed rounded-lg p-3 bg-gray-50 flex flex-col items-center">
+                <label className="cursor-pointer flex flex-col items-center">
+                  <Upload className="w-4 h-4 text-gray-400 mb-1" />
+                  <span className="text-[10px] text-gray-500 uppercase font-bold">{bgImage ? "Changer fond" : "Importer fond"}</span>
+                  <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, setBgImage)} />
+                </label>
+              </div>
+            )}
+          </section>
+
+          {/* Logo Marque */}
+          <section className="space-y-3 bg-gray-50 p-3 rounded-xl border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[2px]">Logo Marque</h3>
+              <button onClick={() => toggleVisibility('showLogo')} className="text-gray-400 hover:text-blue-600 transition-colors">
+                {formData.showLogo ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-red-400" />}
+              </button>
+            </div>
+            <div className="border-2 border-dashed rounded-lg p-4 bg-white flex flex-col items-center">
+              {brandLogo ? (
+                <div className="relative group w-16 h-16">
+                  <img src={brandLogo} className="w-full h-full object-contain" alt="Logo" />
+                  <button onClick={() => setBrandLogo(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 shadow-md"><X className="w-3 h-3" /></button>
+                </div>
+              ) : (
+                <label className="cursor-pointer text-center">
+                  <Upload className="w-4 h-4 text-gray-300 mx-auto mb-1" />
+                  <span className="text-[9px] font-bold text-gray-400 uppercase">Importer Logo</span>
+                  <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, setBrandLogo)} />
+                </label>
+              )}
+            </div>
+          </section>
+
+          {/* Message Control */}
+          <section className="space-y-3 bg-gray-50 p-3 rounded-xl border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[2px]">Message</h3>
+              <button onClick={() => toggleVisibility('showText')} className="text-gray-400 hover:text-blue-600 transition-colors">
+                {formData.showText ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-red-400" />}
+              </button>
+            </div>
+
+            <div className="flex p-1 bg-white border rounded-xl mb-2 shadow-sm">
+              <button onClick={() => setFormData(prev => ({ ...prev, messageType: 'text' }))} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[9px] font-bold rounded-lg transition-all ${formData.messageType === 'text' ? 'bg-blue-600 text-white' : 'text-gray-500'}`}>TEXTE</button>
+              <button onClick={() => setFormData(prev => ({ ...prev, messageType: 'visual' }))} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[9px] font-bold rounded-lg transition-all ${formData.messageType === 'visual' ? 'bg-blue-600 text-white' : 'text-gray-500'}`}>VISUEL</button>
+            </div>
+
+            {formData.messageType === 'text' ? (
+              <div className="space-y-3">
+                <textarea name="tagline" value={formData.tagline} onChange={handleInputChange} className="w-full p-2 bg-white border rounded-lg text-xs h-12 focus:ring-1 focus:ring-blue-600 shadow-inner outline-none" placeholder="Votre message..." />
+                <div className="grid grid-cols-2 gap-2">
+                   <div className="flex gap-2 items-center p-2 bg-white border rounded-lg shadow-sm">
+                    <input type="color" name="textColor" value={formData.textColor} onChange={handleInputChange} className="w-6 h-6 rounded cursor-pointer border-none" />
+                    <span className="text-[8px] font-bold text-gray-400">TEXTE</span>
+                  </div>
+                  <div className="flex gap-2 items-center p-2 bg-white border rounded-lg shadow-sm text-right">
+                    <input type="text" name="textColor" value={formData.textColor} onChange={handleInputChange} className="w-full bg-transparent text-[10px] font-mono uppercase focus:ring-0 border-none p-0 text-right outline-none" />
+                  </div>
+                </div>
+                <div className="bg-white border rounded-lg p-2 space-y-2 shadow-sm">
+                  <label className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1"><FontSizeIcon className="w-3 h-3" /> Taille : {formData.textSize}px</label>
+                  <input type="range" name="textSize" min="8" max="60" step="1" value={formData.textSize} onChange={handleInputChange} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  {FONT_OPTIONS.map(font => (
+                    <button key={font.id} onClick={() => setFormData(prev => ({ ...prev, fontId: font.id }))} className={`p-1 text-[8px] rounded border ${formData.fontId === font.id ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-600 hover:bg-gray-50'}`} style={{ fontFamily: font.family }}>{font.name}</button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="border-2 border-dashed rounded-lg p-4 bg-white flex flex-col items-center">
+                {messageImage ? (
+                  <div className="relative group w-full h-16">
+                    <img src={messageImage} className="w-full h-full object-contain" alt="Accroche" />
+                    <button onClick={() => setMessageImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 shadow-md"><X className="w-3 h-3" /></button>
+                  </div>
+                ) : (
+                  <label className="cursor-pointer text-center">
+                    <Upload className="w-4 h-4 text-gray-300 mx-auto mb-1" />
+                    <span className="text-[9px] font-bold text-gray-400 uppercase">Importer Visuel</span>
+                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, setMessageImage)} />
+                  </label>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* SECTION : BOUTONS CTA */}
+          {hasCtas && (
+            <>
+              <section className="space-y-3 bg-blue-50 p-3 rounded-xl border border-blue-100 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[10px] font-black text-blue-900 uppercase tracking-[2px]">Boutons CTA</h3>
+                  <span className="text-[9px] font-bold text-blue-400 uppercase">{formData.ctas.length} / 5</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[8px] font-bold text-blue-400 uppercase">Fond CTA</label>
+                    <div className="flex items-center gap-2 p-1.5 bg-white border rounded-lg">
+                      <input type="color" name="ctaBgColor" value={formData.ctaBgColor} onChange={handleInputChange} className="w-6 h-6 rounded cursor-pointer border-none" />
+                      <input type="text" name="ctaBgColor" value={formData.ctaBgColor} onChange={handleInputChange} className="flex-1 bg-transparent text-[9px] font-mono uppercase focus:ring-0 border-none p-0 outline-none" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[8px] font-bold text-blue-400 uppercase">Texte CTA</label>
+                    <div className="flex items-center gap-2 p-1.5 bg-white border rounded-lg">
+                      <input type="color" name="ctaTextColor" value={formData.ctaTextColor} onChange={handleInputChange} className="w-6 h-6 rounded cursor-pointer border-none" />
+                      <input type="text" name="ctaTextColor" value={formData.ctaTextColor} onChange={handleInputChange} className="flex-1 bg-transparent text-[9px] font-mono uppercase focus:ring-0 border-none p-0 outline-none" />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2 pt-2 border-t border-blue-100">
+                  {formData.ctas.map((cta, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input 
+                        type="text" 
+                        value={cta} 
+                        onChange={(e) => updateCta(idx, e.target.value)}
+                        className="flex-1 p-2 bg-white border rounded-lg text-[10px] focus:ring-1 focus:ring-blue-600 outline-none shadow-sm"
+                        placeholder={`Bouton ${idx + 1}...`}
+                      />
+                      <button onClick={() => removeCta(idx)} className="p-2 text-red-400 hover:text-red-600 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  {formData.ctas.length < 5 && (
+                    <button 
+                      onClick={addCta}
+                      className="w-full py-2 bg-white border-2 border-dashed border-blue-200 rounded-lg text-blue-500 text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-white hover:border-blue-400 transition-all shadow-sm"
+                    >
+                      <PlusCircle className="w-3 h-3" /> AJOUTER UN BOUTON
+                    </button>
+                  )}
+                </div>
+              </section>
+
+              <section className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[2px]">CTA Final (Bas)</h3>
+                  <button onClick={() => toggleVisibility('showFooterCta')} className="text-gray-400 hover:text-blue-600 transition-colors">
+                    {formData.showFooterCta ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-red-400" />}
+                  </button>
+                </div>
+                <input 
+                  type="text" 
+                  name="footerCtaText"
+                  value={formData.footerCtaText}
+                  onChange={handleInputChange}
+                  className="w-full p-2 bg-white border rounded-lg text-[10px] focus:ring-1 focus:ring-blue-600 outline-none shadow-sm"
+                  placeholder="Texte du bouton final..."
+                />
+              </section>
+            </>
+          )}
+
+          {/* Produits Section */}
+          <section className="space-y-3 bg-gray-50 p-3 rounded-xl border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[2px]">Visuels Produits</h3>
+              <button onClick={() => toggleVisibility('showVisuals')} className="text-gray-400 hover:text-blue-600 transition-colors">
+                {formData.showVisuals ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-red-400" />}
+              </button>
+            </div>
+            <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
+              <label className="flex-shrink-0 w-10 h-10 border-2 border-dashed rounded-lg flex items-center justify-center cursor-pointer bg-white transition-colors hover:bg-blue-50"><Plus className="w-3 h-3 text-gray-400" /><input type="file" className="hidden" multiple accept="image/*" onChange={(e) => handleFileUpload(e, setCustomAssets, true)} /></label>
+              {customAssets.map((asset, idx) => (
+                <div key={idx} className="relative w-10 h-10 border rounded-lg bg-white overflow-hidden group shadow-sm">
+                  <img src={asset} className="w-full h-full object-contain" alt="" />
+                  <button onClick={() => removeAsset(idx)} className="absolute inset-0 bg-red-500/80 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity"><X className="w-3 h-3" /></button>
+                </div>
+              ))}
+            </div>
+            <textarea name="productDescription" value={formData.productDescription} onChange={handleInputChange} placeholder="Objet IA..." className="w-full p-2 bg-white border rounded-lg text-[10px] h-10 resize-none shadow-inner outline-none" />
+            <button onClick={generateVisual} disabled={isGenerating || !formData.productDescription} className="w-full py-2 bg-blue-700 text-white rounded-lg text-[10px] font-bold uppercase flex items-center justify-center gap-1 hover:bg-blue-800 transition-all shadow-md">
+              {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Layers className="w-3 h-3" />} IA
+            </button>
+          </section>
+
+          {/* BOUTON D'ENREGISTREMENT FINAL (UNIQUE) */}
+          <div className="pt-6 border-t border-gray-100">
+            <button 
+              onClick={handleExport}
+              className="w-full py-4 bg-[#003876] hover:bg-blue-800 text-white rounded-xl font-bold uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-[0_10px_20px_-10px_rgba(0,56,118,0.5)] active:scale-95"
+            >
+              <Save className="w-5 h-5" /> Enregistrer le visuel final
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Zone de Prévisualisation */}
+      <div className="flex-1 p-4 md:p-8 flex flex-col items-center justify-center bg-[#EAEEF3] overflow-auto print:p-0 print:bg-white">
+        <div className="mb-4 bg-white px-5 py-2 rounded-full shadow-sm border border-gray-200 flex items-center gap-3 print:hidden">
+          <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+          <span className="text-[10px] font-black uppercase tracking-[2px] text-gray-500">{currentFormat.name} • {currentFormat.width}x{currentFormat.height}px</span>
+        </div>
+
+        <div 
+          id="export-visual"
+          className="relative shadow-[0_48px_80px_-16px_rgba(0,0,0,0.3)] overflow-hidden transition-all duration-700 bg-white print:shadow-none print:ring-0"
+          style={{ 
+            width: '100%',
+            maxWidth: `${currentFormat.width}px`,
+            aspectRatio: `${currentFormat.width} / ${currentFormat.height}`,
+            backgroundColor: formData.bgType === 'color' ? formData.bgColor : 'transparent',
+            backgroundImage: formData.bgType === 'image' && bgImage ? `url(${bgImage})` : 'none',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center'
+          }}
+        >
+          {/* SAFE AREA */}
+          <div 
+            className={`absolute left-1/2 -translate-x-1/2 transition-all duration-500 flex pointer-events-none ${currentFormat.centered ? 'top-1/2 -translate-y-1/2' : ''}`}
+            style={{
+              top: currentFormat.centered ? '50%' : '24px', 
+              width: `${(currentFormat.safeWidth / currentFormat.width) * 100}%`,
+              height: `${(currentFormat.safeHeight / currentFormat.height) * 100}%`
+            }}
+          >
+            {/* COLONNE GAUCHE */}
+            <div className={`w-1/2 h-full flex flex-col p-2 relative z-30 transition-all duration-500 overflow-hidden
+              ${(formData.showLogo && formData.showText && formData.showVisuals) ? 'justify-between' : 'justify-center'}
+              ${(!formData.showText || !formData.showVisuals) ? 'items-center text-center' : 'items-start'}
+            `}>
+               {formData.showLogo && (
+                 <div 
+                    className={`transition-all duration-500 transform ${isLogoOnly ? 'origin-center' : 'origin-left'}`}
+                    style={{ 
+                      transform: `scale(${finalLogoScale})`,
+                      maxWidth: `${100 / finalLogoScale}%` 
+                    }}
+                  >
+                    {brandLogo ? (
+                      <div className="inline-block max-w-full">
+                        <img src={brandLogo} className="h-8 md:h-12 w-auto object-contain drop-shadow-sm max-w-full" alt="Logo" />
+                      </div>
+                    ) : (
+                      <div className="text-[8px] text-white/40 uppercase font-black italic inline-block border border-white/10 p-1">Logo</div>
+                    )}
+                 </div>
+               )}
+               {formData.showText && (formData.showVisuals || !formData.showLogo) && (
+                  <MessageContent isFullWidth={!formData.showLogo} />
+               )}
+            </div>
+
+            {/* COLONNE DROITE */}
+            <div className={`w-1/2 h-full flex items-center justify-center z-10 transition-all duration-500 overflow-hidden ${allVisuals.length === 1 ? 'p-0' : 'p-1'}`}>
+               {formData.showVisuals ? (
+                 <div className={`grid w-full h-full items-center justify-items-center max-h-full max-w-full overflow-hidden ${allVisuals.length === 1 ? 'grid-cols-1' : (allVisuals.length === 2 ? 'grid-cols-2 gap-1' : 'grid-cols-2 grid-rows-2 gap-1')}`}>
+                   {allVisuals.map((visual, i) => (
+                     <div key={i} className="relative w-full h-full flex items-center justify-center animate-in zoom-in-50 duration-500 overflow-hidden">
+                       <img src={visual.url} className={`w-full h-full object-contain drop-shadow-2xl ${visual.type === 'ia' ? 'mix-blend-multiply opacity-95' : ''}`} alt="" />
+                     </div>
+                   ))}
+                 </div>
+               ) : (
+                 formData.showText && formData.showLogo && (
+                   <div className="animate-in fade-in slide-in-from-right-8 duration-700 text-center md:text-left px-2 w-full h-full overflow-hidden flex justify-center items-center">
+                     <MessageContent isSmall={true} />
+                   </div>
+                 )
+               )}
+            </div>
+          </div>
+
+          {/* ZONE DES BOUTONS CTA INTERMÉDIAIRES */}
+          {hasCtas && (
+            <div 
+              className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 transition-all duration-700 pointer-events-none"
+              style={{ 
+                top: `${24 + currentFormat.safeHeight + 20}px`, 
+                width: '100%'
+              }}
+            >
+              {formData.ctas.map((cta, idx) => (
+                <div 
+                  key={idx}
+                  className="w-[200px] py-2.5 px-2 rounded shadow-md font-bold text-[10px] uppercase tracking-wider text-center animate-in fade-in slide-in-from-bottom-2"
+                  style={{ 
+                    backgroundColor: formData.ctaBgColor, 
+                    color: formData.ctaTextColor,
+                    animationDelay: `${idx * 100}ms`
+                  }}
+                >
+                  {cta}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* CTA FINAL "JE DÉCOUVRE" */}
+          {hasCtas && formData.showFooterCta && (
+            <div 
+              className="absolute bottom-[40px] left-1/2 -translate-x-1/2 w-[150px] py-3 px-2 rounded-lg shadow-xl font-black text-[11px] uppercase tracking-widest text-center animate-in slide-in-from-bottom-4 duration-1000 flex items-center justify-center gap-2"
+              style={{ 
+                backgroundColor: formData.ctaBgColor, 
+                color: formData.ctaTextColor,
+              }}
+            >
+              {formData.footerCtaText}
+              <ChevronRight className="w-4 h-4" />
+            </div>
+          )}
+          
+          {/* Bouton Téléchargement Preview (Fidèle à l'existant) */}
+          <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-50 print:hidden">
+            <button className="p-3 bg-white text-blue-900 rounded-full shadow-lg hover:scale-110 transition-transform active:scale-95 shadow-blue-900/20" onClick={handleExport}>
+              <Download className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Pied de page informatif (Masqué lors de l'impression) */}
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl text-center text-gray-500 print:hidden">
+          <div className="bg-white/40 p-5 rounded-2xl border border-white/50 backdrop-blur-sm flex flex-col items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-blue-600" />
+            <span className="block text-[10px] font-black uppercase text-blue-900 tracking-widest">Enregistrement Final</span>
+            <p className="text-[11px] leading-relaxed">Une fois votre création terminée, utilisez le bouton d'exportation en bas à gauche pour enregistrer le visuel prêt à l'emploi.</p>
+          </div>
+          <div className="bg-white/40 p-5 rounded-2xl border border-white/50 backdrop-blur-sm flex flex-col items-center gap-2">
+            <Layout className="w-5 h-5 text-blue-600" />
+            <span className="block text-[10px] font-black uppercase text-blue-900 tracking-widest">Format Banner</span>
+            <p className="text-[11px] leading-relaxed">Le format Banner (1440x200) optimise automatiquement l'espace en masquant les CTA pour un rendu panoramique épuré.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default App;
